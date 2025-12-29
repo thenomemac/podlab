@@ -1,0 +1,28 @@
+[project]
+name = "podlab"
+version = "0.1.0"
+description = "A Python CLI to set DNS and NAT using container labels."
+authors = [
+    {name = "josiah@olsonsky.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+dependencies = [
+    "loguru (>=0.7.3,<0.8.0)",
+    "pydo (>=0.22.0,<0.23.0)"
+]
+
+[dependency-groups]
+dev = [
+    "black (>=25.12.0,<26.0.0)",
+    "isort (>=7.0.0,<8.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+# Format is: <cli-command-name> = "<package-name>.<module-name>:<function-name>"
+podlab = "podlab.cli:main"

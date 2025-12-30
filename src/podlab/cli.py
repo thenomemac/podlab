@@ -129,7 +129,7 @@ def update_public_ip():
         resp = update_dns_to_providor(req)
         i += 1
 
-        log(f"API Response: {resp}")
+        log(f"DNS API Response (update_public_ip): {resp}")
 
     log(f"update_public_ip() updated {i}/{len(fqdns)} dns recs.")
 
@@ -402,7 +402,6 @@ def main():
                             resp = update_upnp(label, container)
                             i += 1
                             G["LABELS_PROCESSED"].append((container, label))
-                            log(f"API Response: {resp}")
 
                 log(f"UPNP processed for {i} new container labels.")
 
@@ -425,7 +424,7 @@ def main():
                             resp = update_dns(label)
                             i += 1
                             G["LABELS_PROCESSED"].append((container, label))
-                            log(f"API Response: {resp}")
+                            log(f"DNS API Response: {resp}")
 
                 log(f"DNS processed for {i} new container labels.")
 

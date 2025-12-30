@@ -14,13 +14,14 @@ from loguru import logger
 
 log = logger.info
 
+# Config flags via ENV VAR
 DNS_TOKEN = os.environ.get("DO_AUTH_TOKEN")
-
 CONTAINER_CLI = str(os.environ.get("PODLAB_CONTAINER_CLI", "podman"))
 TTL = int(os.environ.get("PODLAB_TTL", "60"))
 SLEEP = int(os.environ.get("PODLAB_SLEEP", "10"))
 LOG_SHELL = bool(int(os.environ.get("PODLAB_LOG_SHELL", "0")))
 IP_STALE_SEC = int(os.environ.get("PODLAB_IP_STALE_SEC", "60"))
+RUN_TYPE = str(os.environ.get("PODLAB_RUN_TYPE", "all"))
 
 G = {
     "FORCEUPDATE_PUBLIC_IP_DOMAINS": [
@@ -295,6 +296,72 @@ def pull_labels_by_container(label: str) -> dict[str, list[str]]:
     return labels_by_container
 
 
+def update_upnp(label: str, container: str = "podlab-container"):
+
+    if "/" in label and len(label.split("/")) == 2:
+        protocol_ = label.split("/")[1]
+        label_ports = label.split("/")[0]
+    elif label != "":
+        protocol_ = "all"
+        label_ports = label
+    else:
+        raise ValueError(f"Bad format on label: {label}")
+
+    if LOG_SHELL:
+        log(f"protocol_={protocol_}")
+
+    if ":" in label_ports and len(label_ports.split(":")) == 2:
+        external_port, internal_port = label_ports.split(":")
+    elif label_ports != "":
+        external_port = label_ports
+        internal_port = label_ports
+    else:
+        raise ValueError(f"Bad format on label: {label}")
+
+    if LOG_SHELL:
+        log(f"external_port={external_port}")
+        log(f"internal_port={internal_port}")
+
+    supported_protocols = ["tcp", "udp"]
+    if protocol_ == "all":
+        protocols = supported_protocols
+    elif protocol_ in supported_protocols:
+        protocols = [protocol_]
+    else:
+        raise ValueError(f"Unsupported protocol_: {protocol_}")
+
+    if LOG_SHELL:
+        log(f"protocols={protocols}")
+
+    for protocol in protocols:
+
+        # description ex:
+        # 'portical: (25567:25567/tcp) mc3'
+        description = (
+            f"portical: ({external_port}:{internal_port}/{protocol}) {container}"
+        )
+
+        cmd = f'''upnpc -d "{external_port}" "{protocol}"'''
+        if LOG_SHELL:
+            log(f"Running cmd $ {cmd}")
+        cmdout = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True
+        )
+        if LOG_SHELL:
+            log(cmdout.stdout)
+            log(cmdout.stderr)
+
+        cmd = f'''upnpc -e "{description}" -r "{internal_port}" "{external_port}" "{protocol}"'''
+        if LOG_SHELL:
+            log(f"Running cmd $ {cmd}")
+        cmdout = subprocess.run(
+            cmd, shell=True, check=True, capture_output=True, text=True
+        )
+        if LOG_SHELL:
+            log(cmdout.stdout)
+            log(cmdout.stderr)
+
+
 def main():
 
     # Register the signal handlers
@@ -305,9 +372,10 @@ def main():
 
     log("Program running. Press Ctrl+C or send SIGTERM to stop gracefully.")
 
-    if DNS_TOKEN is None:
-        raise ValueError("ENV VAR DO_AUTH_TOKEN is not set.")
-    log(f"DNS_TOKEN='{DNS_TOKEN[:5]}<...>{DNS_TOKEN[-5:]}'")
+    if RUN_TYPE != "upnp":
+        if DNS_TOKEN is None:
+            raise ValueError("ENV VAR DO_AUTH_TOKEN is not set.")
+        log(f"DNS_TOKEN='{DNS_TOKEN[:5]}<...>{DNS_TOKEN[-5:]}'")
 
     public_ip = get_public_ip()
     log(f"public_ip={public_ip}")
@@ -315,28 +383,56 @@ def main():
     while True:
         try:
 
-            labels_by_container = pull_labels_by_container(label="podlab.dns.update")
+            if RUN_TYPE == "all" or RUN_TYPE == "upnp":
+                labels_by_container = pull_labels_by_container(
+                    label="portical.upnp.forward"
+                )
 
-            containers = [*labels_by_container]
-            i = 0
-            for container in containers:
-                labels = labels_by_container[container]
+                containers = [*labels_by_container]
+                i = 0
+                for container in containers:
+                    labels = labels_by_container[container]
 
-                for label in labels:
-                    if (container, label) not in G["LABELS_PROCESSED"]:
+                    for label in labels:
+                        if (container, label) not in G["LABELS_PROCESSED"]:
 
-                        log(f"Processing container {container} with record: '{label}'")
-                        resp = update_dns(label)
-                        i += 1
-                        G["LABELS_PROCESSED"].append((container, label))
-                        log(f"API Response: {resp}")
+                            log(
+                                f"Processing container {container} with record: '{label}'"
+                            )
+                            resp = update_upnp(label, container)
+                            i += 1
+                            G["LABELS_PROCESSED"].append((container, label))
+                            log(f"API Response: {resp}")
 
-            log(f"DNS processed for {i} new container labels.")
+                log(f"UPNP processed for {i} new container labels.")
 
-            if public_ip_change():
-                update_public_ip()
-            else:
-                log("No ip change...")
+            if RUN_TYPE == "all" or RUN_TYPE == "dns":
+                labels_by_container = pull_labels_by_container(
+                    label="podlab.dns.update"
+                )
+
+                containers = [*labels_by_container]
+                i = 0
+                for container in containers:
+                    labels = labels_by_container[container]
+
+                    for label in labels:
+                        if (container, label) not in G["LABELS_PROCESSED"]:
+
+                            log(
+                                f"Processing container {container} with record: '{label}'"
+                            )
+                            resp = update_dns(label)
+                            i += 1
+                            G["LABELS_PROCESSED"].append((container, label))
+                            log(f"API Response: {resp}")
+
+                log(f"DNS processed for {i} new container labels.")
+
+                if public_ip_change():
+                    update_public_ip()
+                else:
+                    log("No ip change...")
 
             log(f"sleeping...")
             time.sleep(SLEEP)

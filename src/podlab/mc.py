@@ -39,7 +39,7 @@ def mc(
       #   oracle-index
     volumes:
       - ${{VOLUME_DIR}}/{name}:/data
-      - ${{VOLUME_DIR}}/modscache:/downloads:ro
+      - ${{VOLUME_DIR}}/{name}_downloads:/downloads:rw
     labels:
       - 'portical.upnp.forward={port}:{port}/tcp'
       - 'podlab.dns.update=olsonsky.com a {name} auto|olsonsky.com srv _minecraft._tcp.{name} {name} {port}'

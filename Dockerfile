@@ -14,4 +14,4 @@ RUN poetry install --no-cache --without=dev
 
 ENV PODLAB_CONTAINER_CLI=docker
 
-CMD [ "python", "-m", "poetry", "run", "podlab" ]
+CMD [ "python", "-m", "poetry", "run", "podlab", "app"]

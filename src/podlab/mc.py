@@ -4,7 +4,10 @@ log = logger.info
 
 
 def mc(
-    name: str, port: int, compose_filepath: str = "~/work/mycloud/mc/compose.yml"
+    name: str,
+    port: int,
+    compose_filepath: str = "~/work/mycloud/mc/compose.yml",
+    strict_naming: bool = True,
 ) -> str:
     """A tool for generating docker compose yaml for a new minecraft server on the homelab.
 
@@ -18,6 +21,21 @@ def mc(
 
     log(f"Append the config to the compose.yml file, ex:")
     log(f"$ nano {compose_filepath}")
+
+    if strict_naming and not (
+        len(name) >= 3
+        and name[:2] == "mc"
+        and name[2:].isdigit()
+        and int(name[2:]) >= 1
+    ):
+        raise ValueError(
+            f"Parameter name='{name}' doesn't match pattern `mc<int>` where int >= 1"
+        )
+
+    if strict_naming and port != int(name[2:]) - 1 + 25565:
+        raise ValueError(
+            f"Parameter port={port} doesn't match pattern the suffix number in `name` - 1 + 25565"
+        )
 
     template_str = f"""
   {name}:
